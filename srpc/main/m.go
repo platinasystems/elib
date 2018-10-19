@@ -5,11 +5,11 @@
 package main
 
 import (
-	"github.com/platinasystems/go/elib"
-	"github.com/platinasystems/go/elib/elog"
-	"github.com/platinasystems/go/elib/iomux"
-	"github.com/platinasystems/go/elib/socket"
-	"github.com/platinasystems/go/elib/srpc"
+	"github.com/platinasystems/elib"
+	"github.com/platinasystems/elib/elog"
+	"github.com/platinasystems/elib/iomux"
+	"github.com/platinasystems/elib/socket"
+	"github.com/platinasystems/elib/srpc"
 
 	"flag"
 	"fmt"
@@ -227,7 +227,7 @@ func (e *reqEvent) Decode(b []byte) (i int) {
 	return i
 }
 
-//go:generate gentemplate -d Package=main -id ReqEvent -d Type=reqEvent github.com/platinasystems/go/elib/elog/event.tmpl
+//go:generate gentemplate -d Package=main -id ReqEvent -d Type=reqEvent github.com/platinasystems/elib/elog/event.tmpl
 
 type Req struct {
 	A string

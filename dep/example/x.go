@@ -5,14 +5,14 @@
 package main
 
 import (
-	"github.com/platinasystems/go/elib/dep"
+	"github.com/platinasystems/elib/dep"
 
 	"fmt"
 )
 
 type t1Hook func(i int)
 
-//go:generate gentemplate -id t1hook -d Package=main -d DepsType=t1HookVec -d Type=t1Hook -d Data=hooks github.com/platinasystems/go/elib/dep/dep.tmpl
+//go:generate gentemplate -id t1hook -d Package=main -d DepsType=t1HookVec -d Type=t1Hook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
 
 type h0 struct{ x int }
 type h1 struct{ x int }

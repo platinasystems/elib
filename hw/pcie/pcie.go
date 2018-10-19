@@ -6,8 +6,8 @@ package pcie
 
 import (
 	"fmt"
-	"github.com/platinasystems/go/elib"
-	"github.com/platinasystems/go/elib/hw/pci"
+	"github.com/platinasystems/elib"
+	"github.com/platinasystems/elib/hw/pci"
 )
 
 const (

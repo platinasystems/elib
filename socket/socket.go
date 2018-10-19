@@ -5,8 +5,8 @@
 package socket
 
 import (
-	"github.com/platinasystems/go/elib"
-	"github.com/platinasystems/go/elib/iomux"
+	"github.com/platinasystems/elib"
+	"github.com/platinasystems/elib/iomux"
 
 	"fmt"
 	"sync"

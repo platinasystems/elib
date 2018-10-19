@@ -4,9 +4,9 @@ import (
 	"github.com/gotk3/gotk3/cairo"
 	"github.com/gotk3/gotk3/gdk"
 	"github.com/gotk3/gotk3/gtk"
-	"github.com/platinasystems/go/elib"
-	"github.com/platinasystems/go/elib/elog"
-	"github.com/platinasystems/go/elib/math/r2"
+	"github.com/platinasystems/elib"
+	"github.com/platinasystems/elib/elog"
+	"github.com/platinasystems/elib/math/r2"
 
 	"fmt"
 	"math"

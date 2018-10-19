@@ -7,7 +7,7 @@
 package loop
 
 import (
-	"github.com/platinasystems/go/elib/elog"
+	"github.com/platinasystems/elib/elog"
 )
 
 func (l *Loop) ViewEventLog(v *elog.View) {

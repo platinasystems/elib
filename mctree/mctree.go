@@ -5,7 +5,7 @@
 package mctree
 
 import (
-	"github.com/platinasystems/go/elib"
+	"github.com/platinasystems/elib"
 
 	"fmt"
 	"math"
@@ -18,7 +18,7 @@ type shared_pair_offsets struct {
 	reference_count uint
 }
 
-//go:generate gentemplate -d Package=mctree -id shared_pair_offsets_pool -d PoolType=shared_pair_offsets_pool -d Type=shared_pair_offsets -d Data=elts github.com/platinasystems/go/elib/pool.tmpl
+//go:generate gentemplate -d Package=mctree -id shared_pair_offsets_pool -d PoolType=shared_pair_offsets_pool -d Type=shared_pair_offsets -d Data=elts github.com/platinasystems/elib/pool.tmpl
 
 type pair_offsets struct {
 	m          *Main
@@ -189,7 +189,7 @@ func (p *pair_offsets) hash_validate(m *Main) {
 	}
 }
 
-//go:generate gentemplate -d Package=mctree -id node -d PoolType=node_pool -d Type=node -d Data=nodes github.com/platinasystems/go/elib/pool.tmpl
+//go:generate gentemplate -d Package=mctree -id node -d PoolType=node_pool -d Type=node -d Data=nodes github.com/platinasystems/elib/pool.tmpl
 
 func (m *Main) get_node(i node_index) *node {
 	return &m.node_pool.nodes[i]
@@ -881,7 +881,7 @@ type level struct {
 	max_pairs        uint
 }
 
-//go:generate gentemplate -d Package=mctree -id level -d VecType=level_vec -d Type=level github.com/platinasystems/go/elib/vec.tmpl
+//go:generate gentemplate -d Package=mctree -id level -d VecType=level_vec -d Type=level github.com/platinasystems/elib/vec.tmpl
 
 type tree_stats struct {
 	levels         level_vec

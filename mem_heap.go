@@ -5,7 +5,7 @@
 package elib
 
 import (
-	"github.com/platinasystems/go/elib/cpu"
+	"github.com/platinasystems/elib/cpu"
 
 	"fmt"
 	"reflect"

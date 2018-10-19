@@ -5,7 +5,7 @@
 package mctree
 
 import (
-	"github.com/platinasystems/go/elib"
+	"github.com/platinasystems/elib"
 
 	"unsafe"
 )
@@ -28,7 +28,7 @@ func (a *Pair) Set(value, mask uint) {
 	a.Mask = word(mask)
 }
 
-//go:generate gentemplate -d Package=mctree -id Pair -d VecType=pair_vec -d Type=Pair github.com/platinasystems/go/elib/vec.tmpl
+//go:generate gentemplate -d Package=mctree -id Pair -d VecType=pair_vec -d Type=Pair github.com/platinasystems/elib/vec.tmpl
 
 func (p pair_vec) poison() {
 	for i := range p {
@@ -109,7 +109,7 @@ const pair_offset_invalid pair_offset = ^pair_offset(0)
 
 func (m *Main) pair_offset(i uint) pair_offset { return pair_offset(i * m.n_pairs_per_key) }
 
-//go:generate gentemplate -d Package=mctree -id pair_offset -d VecType=pair_offset_vec -d Type=pair_offset github.com/platinasystems/go/elib/vec.tmpl
+//go:generate gentemplate -d Package=mctree -id pair_offset -d VecType=pair_offset_vec -d Type=pair_offset github.com/platinasystems/elib/vec.tmpl
 
 func (m *pair_hash) is_masked(o pair_offset, bit uint) bool {
 	b0, b1 := index(bit)

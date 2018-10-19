@@ -177,7 +177,7 @@ type dump_node struct {
 	level   uint32
 }
 
-//go:generate gentemplate -d Package=mctree -id dump_node -d VecType=dump_node_vec -d Type=dump_node github.com/platinasystems/go/elib/vec.tmpl
+//go:generate gentemplate -d Package=mctree -id dump_node -d VecType=dump_node_vec -d Type=dump_node github.com/platinasystems/elib/vec.tmpl
 
 func (d *dump_node_vec) dump_node(m *Main, i node_index, level uint32) {
 	n := m.get_node(i)

@@ -5,7 +5,7 @@
 package mctree
 
 import (
-	"github.com/platinasystems/go/elib"
+	"github.com/platinasystems/elib"
 
 	"encoding/gob"
 	"os"

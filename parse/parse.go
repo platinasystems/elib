@@ -5,7 +5,7 @@
 package parse
 
 import (
-	"github.com/platinasystems/go/elib"
+	"github.com/platinasystems/elib"
 
 	"errors"
 	"fmt"
@@ -20,7 +20,7 @@ type save struct {
 	index int // Current buffer index
 }
 
-//go:generate gentemplate -d Package=parse -id save -d VecType=saveVec -d Type=save github.com/platinasystems/go/elib/vec.tmpl
+//go:generate gentemplate -d Package=parse -id save -d VecType=saveVec -d Type=save github.com/platinasystems/elib/vec.tmpl
 
 type Input struct {
 	r      io.Reader

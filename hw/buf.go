@@ -5,9 +5,9 @@
 package hw
 
 import (
-	"github.com/platinasystems/go/elib"
-	"github.com/platinasystems/go/elib/cpu"
-	"github.com/platinasystems/go/elib/elog"
+	"github.com/platinasystems/elib"
+	"github.com/platinasystems/elib/cpu"
+	"github.com/platinasystems/elib/elog"
 
 	"fmt"
 	"math"
@@ -102,7 +102,7 @@ func (r *RefHeader) Restore(oldDataOffset int) {
 	r.dataLen = uint16(int(r.dataLen) - Δ)
 }
 
-//go:generate gentemplate -d Package=hw -id Ref -d VecType=RefVec -d Type=Ref github.com/platinasystems/go/elib/vec.tmpl
+//go:generate gentemplate -d Package=hw -id Ref -d VecType=RefVec -d Type=Ref github.com/platinasystems/elib/vec.tmpl
 
 const (
 	// Cache aligned/sized space for buffer header.
@@ -216,7 +216,7 @@ type BufferPool struct {
 	freeNext freeNext
 }
 
-//go:generate gentemplate -d Package=hw -id bufferPools -d PoolType=bufferPools -d Type=*BufferPool -d Data=elts github.com/platinasystems/go/elib/pool.tmpl
+//go:generate gentemplate -d Package=hw -id bufferPools -d PoolType=bufferPools -d Type=*BufferPool -d Data=elts github.com/platinasystems/elib/pool.tmpl
 
 type BufferState uint8
 

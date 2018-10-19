@@ -7,7 +7,7 @@
 package hw
 
 import (
-	"github.com/platinasystems/go/elib"
+	"github.com/platinasystems/elib"
 )
 
 func DmaAllocAligned(n, log2Align uint) (b []byte, id elib.Index, offset, cap uint) {

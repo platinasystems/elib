@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/platinasystems/go/elib"
-	"github.com/platinasystems/go/elib/elog"
-	"github.com/platinasystems/go/elib/elog/elogview"
+	"github.com/platinasystems/elib"
+	"github.com/platinasystems/elib/elog"
+	"github.com/platinasystems/elib/elog/elogview"
 
 	"flag"
 	"fmt"

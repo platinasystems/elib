@@ -5,7 +5,7 @@
 package cli
 
 import (
-	"github.com/platinasystems/go/elib/iomux"
+	"github.com/platinasystems/elib/iomux"
 
 	"encoding/binary"
 	"fmt"

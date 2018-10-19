@@ -6,9 +6,9 @@
 package elog
 
 import (
-	"github.com/platinasystems/go/elib"
-	"github.com/platinasystems/go/elib/cpu"
-	"github.com/platinasystems/go/elib/parse"
+	"github.com/platinasystems/elib"
+	"github.com/platinasystems/elib/cpu"
+	"github.com/platinasystems/elib/parse"
 
 	"bytes"
 	"errors"
@@ -50,7 +50,7 @@ type bufferEvent struct {
 	data [EventDataBytes]byte
 }
 
-//go:generate gentemplate -d Package=elog -id Event -d VecType=bufferEventVec -d Type=bufferEvent github.com/platinasystems/go/elib/vec.tmpl
+//go:generate gentemplate -d Package=elog -id Event -d VecType=bufferEventVec -d Type=bufferEvent github.com/platinasystems/elib/vec.tmpl
 
 func (e *eventHeader) CallerIndex() uint { return uint(e.callerIndex) }
 

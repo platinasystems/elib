@@ -7,7 +7,7 @@ package pci
 // Linux PCI code
 
 import (
-	"github.com/platinasystems/go/elib"
+	"github.com/platinasystems/elib"
 
 	"bytes"
 	"fmt"
