@@ -8,10 +8,9 @@ package iomux
 
 import (
 	"fmt"
+	"log"
 	"syscall"
 	"unsafe"
-
-	"github.com/platinasystems/go/internal/log"
 )
 
 type eventMask uint32
