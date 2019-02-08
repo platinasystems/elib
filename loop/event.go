@@ -244,6 +244,25 @@ type Event struct {
 	e *nodeEvent
 }
 
+func (e *Event) String() string {
+	if e.e == nil {
+		return "nil nodeEvent"
+	}
+	if e.e.actor == nil {
+		return "nil actor"
+	}
+	return e.e.actor.String()
+}
+
+func (e *Event) Actor() event.Actor {
+	if e.e != nil {
+		if e.e.actor != nil {
+			return e.e.actor
+		}
+	}
+	return nil
+}
+
 type EventActor interface {
 	getLoopEvent() *Event
 }
