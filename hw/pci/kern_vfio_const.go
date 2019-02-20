@@ -162,6 +162,7 @@ const (
 const (
 	vfio_region_info_cap_kind_sparse_mmap = 1 + iota
 	vfio_region_info_cap_kind_type
+	vfio_region_info_cap_kind_msix_mappable
 )
 
 type vfio_region_sparse_mmap_area struct {

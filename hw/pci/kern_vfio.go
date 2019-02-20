@@ -35,9 +35,10 @@ type vfio_group struct {
 
 type vfio_device_region_info struct {
 	vfio_region_info
-	mapped_mem   []byte
-	sparse_areas []vfio_region_sparse_mmap_area
-	cap_type     vfio_region_info_cap_type
+	mapped_mem    []byte
+	sparse_areas  []vfio_region_sparse_mmap_area
+	cap_type      vfio_region_info_cap_type
+	msix_mappable bool
 }
 
 type vfio_pci_device struct {
@@ -358,6 +359,8 @@ func (d *vfio_pci_device) Open() (err error) {
 				case vfio_region_info_cap_kind_type:
 					m := (*vfio_region_info_cap_type)(p)
 					ri.cap_type = *m
+				case vfio_region_info_cap_kind_msix_mappable:
+					ri.msix_mappable = true
 				default:
 					panic(fmt.Errorf("vfio region info unknown cap: %+v", h))
 				}
@@ -468,34 +471,56 @@ func (d *vfio_pci_device) unmap_resources() (err error) {
 }
 
 func (d *vfio_pci_device) MapResource(i uint) (res uintptr, err error) {
+	var mem uintptr
 	r := &d.Device.Resources[i]
 	if r.Index >= uint32(len(d.region_infos)) {
-		err = fmt.Errorf("%s: mmap unknown resource BAR %d", d.Device.String(), r.Index)
+		err = fmt.Errorf("%s: mmap unknown resource BAR %d",
+			d.Device.String(), r.Index)
 		return
 	}
 	ri := &d.region_infos[r.Index]
-	prot := uintptr(syscall.PROT_READ | syscall.PROT_WRITE)
-	flags := uintptr(syscall.MAP_SHARED)
-	if len(ri.sparse_areas) > 0 {
-		var mem uintptr
-		mem, r.Mem, err = elib.MmapSlice(0, uintptr(ri.size), uintptr(syscall.PROT_NONE), uintptr(syscall.MAP_SHARED|syscall.MAP_ANONYMOUS), 0, 0)
-		if err == nil {
-			for i := range ri.sparse_areas {
-				a := &ri.sparse_areas[i]
-				_, _, err = elib.MmapSlice(mem+uintptr(a.offset), uintptr(a.size), prot, flags|uintptr(syscall.MAP_FIXED),
-					uintptr(d.device_fd), uintptr(ri.offset+a.offset))
-				if err != nil {
-					break
-				}
-			}
-		}
+	fmt.Printf("MapResource %s, region %d", d.Device.String(), i)
+	if ri.msix_mappable {
+		fmt.Print(", msix-mappable")
+	}
+	fmt.Printf(", sz %v, offset %v", ri.size, ri.offset)
+	if ri.msix_mappable || len(ri.sparse_areas) == 0 {
+		_, r.Mem, err = elib.MmapSlice(0,
+			uintptr(ri.size),
+			syscall.PROT_READ|syscall.PROT_WRITE,
+			syscall.MAP_SHARED,
+			uintptr(d.device_fd),
+			uintptr(ri.offset))
 	} else {
-		_, r.Mem, err = elib.MmapSlice(0, uintptr(ri.size), prot, flags, uintptr(d.device_fd), uintptr(ri.offset))
+		mem, r.Mem, err = elib.MmapSlice(0,
+			uintptr(ri.size),
+			syscall.PROT_NONE,
+			syscall.MAP_SHARED|syscall.MAP_ANONYMOUS,
+			0, 0)
+		for ai := range ri.sparse_areas {
+			if err != nil {
+				break
+			}
+			a := &ri.sparse_areas[ai]
+			_, _, err = elib.MmapSlice(mem+uintptr(a.offset),
+				uintptr(a.size),
+				syscall.PROT_READ|syscall.PROT_WRITE,
+				syscall.MAP_SHARED|syscall.MAP_FIXED,
+				uintptr(d.device_fd),
+				uintptr(ri.offset+a.offset))
+			fmt.Printf(".\nMapResource %s, region %d, area %d",
+				d.Device.String(), i, i)
+			fmt.Printf(", sz %v, offset %v",
+				mem+uintptr(a.offset), ri.offset+a.offset)
+		}
 	}
 	if err != nil {
-		err = fmt.Errorf("%s: mmap resource%d: %s", d.Device.String(), r.Index, err)
+		fmt.Print(": ", err)
+		err = fmt.Errorf("%s: mmap resource %d: %s",
+			d.Device.String(), r.Index, err)
 		return
 	}
+	fmt.Println(".")
 	res = uintptr(unsafe.Pointer(&r.Mem[0]))
 	ri.mapped_mem = r.Mem
 	return
