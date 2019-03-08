@@ -8,6 +8,7 @@ import (
 	"github.com/platinasystems/elib/cpu"
 	"github.com/platinasystems/elib/dep"
 	"github.com/platinasystems/elib/elog"
+	"github.com/platinasystems/elib/internal/dbgelib"
 
 	"fmt"
 	"io"
@@ -105,6 +106,7 @@ func (l *Loop) Seconds(t cpu.Time) float64 { return float64(t) * l.secsPerCycle 
 func (l *Loop) startDataPoller(r inLooper) {
 	n := r.GetNode()
 	n.ft.init()
+	dbgelib.Loop.Logf("***start dataPoller for %v", n.name)
 	go l.dataPoll(r)
 }
 func (l *Loop) startPollers() {
@@ -230,6 +232,7 @@ func (l *Loop) Run() {
 	}
 	for {
 		if quit := l.doEvents(); quit {
+			dbgelib.Loop.Log("quit loop !!!!!!!!!!!!")
 			break
 		}
 		l.doPollers()
