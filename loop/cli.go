@@ -8,6 +8,7 @@ import (
 	"github.com/platinasystems/elib"
 	"github.com/platinasystems/elib/cli"
 	"github.com/platinasystems/elib/elog"
+	"github.com/platinasystems/elib/internal/dbgelib"
 	"github.com/platinasystems/elib/iomux"
 
 	"fmt"
@@ -350,6 +351,26 @@ func (l *Loop) comment(c cli.Commander, w cli.Writer, in *cli.Input) (err error)
 	return
 }
 
+const maxEventHistory = 1000
+
+var eventHistory []string
+
+func logEvent(s string) {
+	if len(eventHistory) > maxEventHistory {
+		eventHistory = eventHistory[1:]
+	}
+	dbgelib.Syslog.Log(s)
+	s = fmt.Sprintf("%v ", time.Now().Format(time.UnixDate)) + s
+	eventHistory = append(eventHistory, s)
+}
+
+func (l *Loop) showLastEvents(c cli.Commander, w cli.Writer, in *cli.Input) (err error) {
+	for _, line := range eventHistory {
+		fmt.Fprintln(w, line)
+	}
+	return nil
+}
+
 func (l *Loop) cliInit() {
 	l.RegisterEventPoller(iomux.Default)
 	c := &l.Cli
@@ -369,6 +390,13 @@ func (l *Loop) cliInit() {
 		ShortHelp: "show events in event log",
 		Action:    l.showEventLog,
 	})
+	if dbgelib.Loop > 0 {
+		c.AddCommand(&cli.Command{
+			Name:      "show last-events",
+			ShortHelp: fmt.Sprintf("show last %v events", maxEventHistory),
+			Action:    l.showLastEvents,
+		})
+	}
 	c.AddCommand(&cli.Command{
 		Name:      "clear event-log",
 		ShortHelp: "clear events in event log",

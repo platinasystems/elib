@@ -8,6 +8,7 @@ import (
 	"github.com/platinasystems/elib"
 	"github.com/platinasystems/elib/cpu"
 	"github.com/platinasystems/elib/elog"
+	"github.com/platinasystems/elib/internal/dbgelib"
 
 	"fmt"
 	"os"
@@ -17,6 +18,9 @@ import (
 	"sync/atomic"
 	"time"
 )
+
+var numWaitLoop uint32
+var numWaitNode uint32
 
 type fromToNode struct {
 	toNode   chan struct{}
@@ -28,44 +32,74 @@ func (x *fromToNode) init() {
 	x.fromNode = make(chan bool, 1)
 }
 
-func (x *fromToNode) signalNode()    { x.toNode <- struct{}{} }
+func (x *fromToNode) signalNode() {
+	x.toNode <- struct{}{}
+}
 func (x *fromToNode) waitNode() bool { return <-x.fromNode }
-func (x *fromToNode) waitNode_with_timeout(d time.Duration, node_name string, actor_name string, ch_length int) bool {
-	//fmt.Printf("poller.go waitNode_with_timeout() start, node: %s, actor: %s, channel length = %d\n", node_name, actor_name, ch_length) //debug print
-	select {
-	case done := <-x.fromNode:
-		//fmt.Printf("poller.go waitNode_with_timeout() done, node: %s, actor: %s, channel length = %d\n", node_name, actor_name, ch_length)
-		return done
-	case <-time.After(d):
-		if true {
-			fmt.Printf("poller.go waitNode_with_timeout() timeout, node: %s, actor: %s, channel length = %d, os.Exit(3)\n", node_name, actor_name, ch_length)
-		}
-		if true {
-			os.Exit(3)
+
+// d = 0 means wait infinite time
+func (x *fromToNode) waitNode_with_timeout(d time.Duration, node_name string, actor_name string, rxEvents chan *nodeEvent) bool {
+	numWaitNode++
+	t := 1 * time.Second
+	s := t
+	if d == 0 {
+		t = 1 * time.Minute
+	}
+	for {
+		select {
+		case done := <-x.fromNode:
+			numWaitNode--
+			return done
+		case <-time.After(t):
+			if dbgelib.Loop > 0 {
+				logEvent(fmt.Sprintf("%v %v waited %v out of %v, num waitNode = %v", node_name, actor_name, s, d, numWaitNode))
+			}
+			s += t
+			if s > d && d != 0 {
+				fmt.Printf("waitNode timeout %v exceeded, node: %s, actor: %s, channel length = %d\n", d, node_name, actor_name, len(rxEvents))
+				fmt.Printf("eventHistory of %v:\n", maxEventHistory)
+				// dump last maxEventHistory logs
+				for _, line := range eventHistory {
+					fmt.Println(line)
+				}
+				os.Exit(3)
+			}
 		}
 	}
 	return false
 }
 
 func (x *fromToNode) signalLoop(v bool) { x.fromNode <- v }
-func (x *fromToNode) waitLoop()         { <-x.toNode }
-func (x *fromToNode) waitLoop_with_timeout(d time.Duration, node_name string, actor_name string, ch_length int) {
-	//fmt.Printf("poller.go waitLoop_with_timeout() start, node: %s, actor: %s, channel length = %d\n", node_name, actor_name, ch_length)
-	start := time.Now()
-	select {
-	case <-x.toNode:
-		if false { // debug print
-			t := time.Since(start)
-			fmt.Printf("poller.go waitLoop_with_timeout() done, node: %s, actor: %s, channel length = %d, in %s\n", node_name, actor_name, ch_length, t.String())
-		}
-		return
-	case <-time.After(d):
-		//panic("  poller.go waitLoop_with_timeout() timeout")  //doesn't seem enough to exit vnet, still hangs
-		if true {
-			fmt.Printf("poller.go waitLoop_with_timeout() timeout, node: %s, actor: %s, channel length = %d, os.Exit(3)\n", node_name, actor_name, ch_length)
-		}
-		if true {
-			os.Exit(3)
+
+func (x *fromToNode) waitLoop() { <-x.toNode }
+
+// d = 0 means wait infinite time
+func (x *fromToNode) waitLoop_with_timeout(d time.Duration, node_name string, actor_name string, rxEvents chan *nodeEvent) {
+	numWaitLoop++
+	t := 1 * time.Second
+	s := t
+	if d == 0 {
+		t = 1 * time.Minute
+	}
+	for {
+		select {
+		case <-x.toNode:
+			numWaitLoop--
+			return
+		case <-time.After(t):
+			if dbgelib.Loop > 0 {
+				logEvent(fmt.Sprintf("waitLoop %v %v waited %v out of %v, num waitLoop = %v", node_name, actor_name, s, d, numWaitLoop))
+			}
+			s += t
+			if s > d && d != 0 {
+				fmt.Printf("waitLoop timeout %v exceeded, node: %s, actor: %s, channel length = %d\n", d, node_name, actor_name, len(rxEvents))
+				fmt.Printf("eventHistory of %v:\n", maxEventHistory)
+				// dump last maxEventHistory logs
+				for _, line := range eventHistory {
+					fmt.Println(line)
+				}
+				os.Exit(3)
+			}
 		}
 	}
 }
@@ -299,6 +333,9 @@ func (l *Loop) AddSuspendActivity(in *In, i int, lim *SuspendLimits) {
 		if poll_active {
 			a.toLoop <- struct{}{}
 		} else {
+			if dbgelib.Loop > 0 {
+				logEvent(fmt.Sprintf("signalLoop(false) from %v AddSuspendActivity", n.name))
+			}
 			n.ft.signalLoop(false)
 		}
 		// Wait for continue (resume) signal from main loop.
@@ -306,16 +343,11 @@ func (l *Loop) AddSuspendActivity(in *In, i int, lim *SuspendLimits) {
 		if poll_active {
 			<-a.fromLoop
 		} else {
-			n.ft.waitLoop()
-			if false { //debug print
-				actor_name := "nil"
-				t := 10 * time.Second
-				if n.CurrentEvent().e != nil {
-					if n.CurrentEvent().e.actor != nil {
-						actor_name = n.CurrentEvent().e.actor.String()
-					}
-				}
-				n.ft.waitLoop_with_timeout(t, n.name+"(AddSuspendActivity)", actor_name, len(n.e.rxEvents))
+			t := 0 * time.Second // means wait infinite time
+			if n.CurrentEvent() == nil {
+				n.ft.waitLoop_with_timeout(t, n.name+"(AddSuspendActivity)", "empty nodeEvent", n.e.rxEvents)
+			} else {
+				n.ft.waitLoop_with_timeout(t, n.name+"(AddSuspendActivity)", fmt.Sprintf("%v", n.CurrentEvent().e), n.e.rxEvents)
 			}
 		}
 		// Don't charge node for time suspended.
@@ -591,6 +623,7 @@ func (a *activePoller) dataPoll(l *Loop) {
 	defer func() {
 		if elog.Enabled() {
 			if err := recover(); err != nil {
+				fmt.Printf("activePoller dataPoll exit due to panic poller%d: %v\n", a.index, err)
 				elog.Panic(fmt.Errorf("poller%d: %v", a.index, err))
 				panic(err)
 			}
@@ -617,26 +650,25 @@ func (l *Loop) dataPoll(p inLooper) {
 		if elog.Enabled() {
 			if err := recover(); err != nil {
 				err = fmt.Errorf("%s: %v", n.name, err)
+				fmt.Printf("loop dataPoll exited due to panic %v\n", err)
 				elog.Panic(err)
 				l.Panic(err, debug.Stack())
+				if dbgelib.Loop > 0 {
+					logEvent(fmt.Sprintf("signalLoop(true) from dataPoll panic"))
+				}
 				n.ft.signalLoop(true)
 			}
 		}
 	}()
 	for {
 		n.poller_elog(poller_elog_node_wait)
-		n.ft.waitLoop()
-		if false { //debug print
-			actor_name := "nil"
-			t := 10 * time.Second
-			if n.CurrentEvent() != nil {
-				if n.CurrentEvent().e != nil {
-					if n.CurrentEvent().e.actor != nil {
-						actor_name = n.CurrentEvent().e.actor.String()
-					}
-				}
+		{
+			t := 0 * time.Second // means wait infinite time
+			if n.CurrentEvent() == nil {
+				n.ft.waitLoop_with_timeout(t, n.name+"(dataPoll)", "empty nodeEvent", n.e.rxEvents)
+			} else {
+				n.ft.waitLoop_with_timeout(t, n.name+"(dataPoll)", fmt.Sprintf("%v", n.CurrentEvent().e), n.e.rxEvents)
 			}
-			n.ft.waitLoop_with_timeout(t, n.name+"(dataPoll)", actor_name, len(n.e.rxEvents))
 		}
 		n.poller_elog(poller_elog_node_wake)
 		ap := n.getActivePoller()
@@ -649,6 +681,9 @@ func (l *Loop) dataPoll(p inLooper) {
 		ap.pollerStats.update(nVec, t0)
 		l.pollerStats.update(nVec)
 		n.poller_elog(poller_elog_node_signal)
+		if dbgelib.Loop > 0 {
+			logEvent(fmt.Sprintf("signalLoop(true) from %v dataPoll", n.name))
+		}
 		n.ft.signalLoop(true)
 	}
 }
@@ -681,8 +716,22 @@ func (l *Loop) doPollers() {
 
 		// Start poller who will be blocked waiting on fromLoop.
 		if poll_active {
-			a.fromLoop <- n.noder.(inLooper)
+			done := false
+			for !done {
+				select {
+				case a.fromLoop <- n.noder.(inLooper):
+					done = true
+				case <-time.After(1 * time.Second):
+					// shouldn't hit this
+					if dbgelib.Loop > 0 {
+						logEvent(fmt.Sprintf("DEBUG doPoller %v start timed out", n.name))
+					}
+				}
+			}
 		} else {
+			if dbgelib.Loop > 0 {
+				logEvent(fmt.Sprintf("signalNode from doPoller poller %v, i=%v", n.name, i))
+			}
 			n.ft.signalNode()
 		}
 	}
@@ -698,18 +747,24 @@ func (l *Loop) doPollers() {
 		if n.s.is_polling {
 			n.poller_elog(poller_elog_wait)
 			if poll_active {
-				<-a.toLoop
-			} else {
-				done = n.ft.waitNode()
-				if false {
-					actor_name := "nil"
-					t := 3 * time.Second
-					if n.e.currentEvent.e != nil {
-						if n.e.currentEvent.e.actor != nil {
-							actor_name = n.e.currentEvent.e.actor.String()
+				done := false
+				for !done {
+					select {
+					case <-a.toLoop:
+						done = true
+					case <-time.After(1 * time.Second):
+						// shouldn't hit this
+						if dbgelib.Loop > 0 {
+							logEvent(fmt.Sprintf("DEBUG poll %v finish timed out", n.name))
 						}
 					}
-					done = n.ft.waitNode_with_timeout(t, n.name+"(doPollers)", actor_name, len(n.e.rxEvents))
+				}
+			} else {
+				t := 0 * time.Second // wait for infinite time
+				if n.CurrentEvent() == nil {
+					done = n.ft.waitNode_with_timeout(t, n.name+"(doPollers)", "empty nodeEvent", n.e.rxEvents)
+				} else {
+					done = n.ft.waitNode_with_timeout(t, n.name+"(doPollers)", fmt.Sprintf("%v", n.CurrentEvent().e), n.e.rxEvents)
 				}
 			}
 			n.poller_elog(poller_elog_wait_done)
