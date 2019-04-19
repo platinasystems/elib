@@ -31,10 +31,8 @@ func (x *fromToNode) init() {
 func (x *fromToNode) signalNode()    { x.toNode <- struct{}{} }
 func (x *fromToNode) waitNode() bool { return <-x.fromNode }
 func (x *fromToNode) waitNode_with_timeout(d time.Duration, node_name string, actor_name string, ch_length int) bool {
-	//fmt.Printf("poller.go waitNode_with_timeout() start, node: %s, actor: %s, channel length = %d\n", node_name, actor_name, ch_length) //debug print
 	select {
 	case done := <-x.fromNode:
-		//fmt.Printf("poller.go waitNode_with_timeout() done, node: %s, actor: %s, channel length = %d\n", node_name, actor_name, ch_length)
 		return done
 	case <-time.After(d):
 		if true {
@@ -50,14 +48,8 @@ func (x *fromToNode) waitNode_with_timeout(d time.Duration, node_name string, ac
 func (x *fromToNode) signalLoop(v bool) { x.fromNode <- v }
 func (x *fromToNode) waitLoop()         { <-x.toNode }
 func (x *fromToNode) waitLoop_with_timeout(d time.Duration, node_name string, actor_name string, ch_length int) {
-	//fmt.Printf("poller.go waitLoop_with_timeout() start, node: %s, actor: %s, channel length = %d\n", node_name, actor_name, ch_length)
-	start := time.Now()
 	select {
 	case <-x.toNode:
-		if false { // debug print
-			t := time.Since(start)
-			fmt.Printf("poller.go waitLoop_with_timeout() done, node: %s, actor: %s, channel length = %d, in %s\n", node_name, actor_name, ch_length, t.String())
-		}
 		return
 	case <-time.After(d):
 		//panic("  poller.go waitLoop_with_timeout() timeout")  //doesn't seem enough to exit vnet, still hangs

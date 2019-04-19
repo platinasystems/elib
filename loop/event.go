@@ -171,7 +171,6 @@ func (d *Node) eventDone() {
 	n.activeCount--
 	n.log(d, event_elog_node_signal_done)
 	n.ft.signalLoop(true)
-	//fmt.Printf("signalLoop(true)================\n") //debug print
 }
 
 func (l *Loop) eventHandler(r Noder) {
@@ -215,27 +214,8 @@ func (l *Loop) eventHandler(r Noder) {
 			panic(fmt.Errorf("expected node %s got %s: %p %s", d.name, e.d.name, e, e.actor.String()))
 		}
 		n.currentEvent.e = e
-		if false { //debug print
-			fmt.Printf("eventHandler do Action\n")
-			actor_name := "nil"
-			if n.currentEvent.e != nil {
-				if n.currentEvent.e.actor != nil {
-					actor_name = n.currentEvent.e.actor.String()
-				}
-			}
-			fmt.Printf("eventHandler: node: %v, actor %v, ch length = %d\n", d.name, actor_name, len(n.rxEvents))
-		}
 		e.do()
 		d.eventDone()
-		if false { //debug print
-			actor_name := "nil"
-			if n.currentEvent.e != nil {
-				if n.currentEvent.e.actor != nil {
-					actor_name = n.currentEvent.e.actor.String()
-				}
-			}
-			fmt.Printf("   done: node: %v, actor %v, ch length = %d\n", d.name, actor_name, len(n.rxEvents))
-		}
 	}
 }
 
@@ -317,13 +297,6 @@ func (x *Event) Name() (actor_name string) {
 func (x *Event) SuspendWTimeout(t time.Duration) {
 	d := x.e.d //d is the *Node for event x, e here is the nodeEvent
 	n := &d.e  //e here is the eventNode for d
-	if false { //debug print
-		actor_name := "nil"
-		if x.e.actor != nil {
-			actor_name = x.e.actor.String()
-		}
-		fmt.Printf("SuspendWTimeout() point 1 node %s; actor %s; rxEvent ch length=%d \n", d.name, actor_name, len(n.rxEvents))
-	}
 	if !n.isActive() {
 		panic("event.go SuspendWTimeout() suspending inactive node")
 	}
@@ -460,9 +433,6 @@ func (m *eventMain) doNodeEvent(e *nodeEvent) (quit *quitEvent) {
 	if e.isResume() {
 		m.addActive(e.d)
 		e.resume()
-		if false { //debug print
-			fmt.Printf("doNodeEvent resume active node %v\n", e.d.name)
-		}
 	} else {
 		e.EventAction()
 	}
@@ -470,27 +440,21 @@ func (m *eventMain) doNodeEvent(e *nodeEvent) (quit *quitEvent) {
 }
 
 func (l *Loop) doEventNoWait() (quit *quitEvent) {
-	//fmt.Printf("doEventNoWait\n") //debug print
 	select {
 	default: // nothing to do
 	case e := <-l.events:
 		quit = l.doNodeEvent(e)
 	}
-	//fmt.Printf("doEventNoWait, done quit=%v\n", quit) //debug print
 	return
 }
 
 func (l *Loop) doEventWait() (quit *quitEvent, timeout bool) {
-	//fmt.Printf("doEventWait\n") //debug print
 	m := &l.eventMain
 	m.event_timer_elog(event_timer_elog_waiting, m.timerDuration)
 	select {
 	case e := <-l.events:
 		quit = l.doNodeEvent(e)
-		//fmt.Printf("doEventWait, normal quit=%v\n", quit) //debug print
 	case <-m.timer.C:
-		//fmt.Printf("doEventWait, timer expired\n") //debug print
-
 		// Log difference between time now and timer cpu time.
 		m.event_timer_elog(event_timer_elog_timeout, l.duration(m.timerCpuTime))
 		m.timer.Reset(maxDuration)
@@ -516,8 +480,6 @@ func (l *Loop) doEvents() (quitLoop bool) {
 
 	// Try waiting if we have no active nodes.
 	if len(m.activeNodes) == 0 {
-		//fmt.Printf("doEvents no active nodes, try waiting\n") //debug print
-
 		// Try to change active poller state to event wait.
 		// This can and does return false if an active poller comes along racing with our call.
 		if _, didWait = l.activePollerState.setEventWait(); didWait {
@@ -551,7 +513,6 @@ func (l *Loop) doEvents() (quitLoop bool) {
 		quit = l.doEventNoWait()
 	}
 
-	//fmt.Printf("doEvents handle expired timed events\n") //debug print
 	// Handle expired timed events.
 	tp := &l.timedEventPool
 	if waitTimeout {
@@ -575,13 +536,11 @@ func (l *Loop) doEvents() (quitLoop bool) {
 		}
 	}
 
-	//fmt.Printf("doEvents look for active nodes\n") //debug print
 	// Signal all active nodes to start.
 	for _, d := range m.activeNodes {
 		n := &d.e
 		n.log(d, event_elog_start)
 		n.ft.signalNode()
-		//fmt.Printf("signalNode active nodes %v to start=============\n", d.name) //debug print
 	}
 
 	// Wait for all event active nodes to finish.
