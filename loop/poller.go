@@ -10,7 +10,6 @@ import (
 	"github.com/platinasystems/elib/elog"
 
 	"fmt"
-	"os"
 	"runtime"
 	"runtime/debug"
 	"sync"
@@ -30,16 +29,16 @@ func (x *fromToNode) init() {
 
 func (x *fromToNode) signalNode()    { x.toNode <- struct{}{} }
 func (x *fromToNode) waitNode() bool { return <-x.fromNode }
-func (x *fromToNode) waitNode_with_timeout(d time.Duration, node_name string, actor_name string, ch_length int) bool {
-	select {
-	case done := <-x.fromNode:
-		return done
-	case <-time.After(d):
-		if true {
-			fmt.Printf("poller.go waitNode_with_timeout() timeout, node: %s, actor: %s, channel length = %d, os.Exit(3)\n", node_name, actor_name, ch_length)
-		}
-		if true {
-			os.Exit(3)
+func (x *fromToNode) waitNode_with_timeout(d time.Duration, n *Node) bool {
+	for {
+		select {
+		case done := <-x.fromNode:
+			return done
+		case <-time.After(d):
+			fmt.Printf("poller.go node %v waitNode_with_timeout() timed out after %v\n", n.name, d)
+			if n.hasEventHandler() {
+				fmt.Printf("%v", n.e)
+			}
 		}
 	}
 	return false
@@ -47,17 +46,16 @@ func (x *fromToNode) waitNode_with_timeout(d time.Duration, node_name string, ac
 
 func (x *fromToNode) signalLoop(v bool) { x.fromNode <- v }
 func (x *fromToNode) waitLoop()         { <-x.toNode }
-func (x *fromToNode) waitLoop_with_timeout(d time.Duration, node_name string, actor_name string, ch_length int) {
-	select {
-	case <-x.toNode:
-		return
-	case <-time.After(d):
-		//panic("  poller.go waitLoop_with_timeout() timeout")  //doesn't seem enough to exit vnet, still hangs
-		if true {
-			fmt.Printf("poller.go waitLoop_with_timeout() timeout, node: %s, actor: %s, channel length = %d, os.Exit(3)\n", node_name, actor_name, ch_length)
-		}
-		if true {
-			os.Exit(3)
+func (x *fromToNode) waitLoop_with_timeout(d time.Duration, n *Node) {
+	for {
+		select {
+		case <-x.toNode:
+			return
+		case <-time.After(d):
+			fmt.Printf("poller.go node %v waitLoop_with_timeout() timed out after %v\n", n.name, d)
+			if n.hasEventHandler() {
+				fmt.Printf("%v", n.e)
+			}
 		}
 	}
 }
@@ -299,16 +297,6 @@ func (l *Loop) AddSuspendActivity(in *In, i int, lim *SuspendLimits) {
 			<-a.fromLoop
 		} else {
 			n.ft.waitLoop()
-			if false { //debug print
-				actor_name := "nil"
-				t := 10 * time.Second
-				if n.CurrentEvent().e != nil {
-					if n.CurrentEvent().e.actor != nil {
-						actor_name = n.CurrentEvent().e.actor.String()
-					}
-				}
-				n.ft.waitLoop_with_timeout(t, n.name+"(AddSuspendActivity)", actor_name, len(n.e.rxEvents))
-			}
 		}
 		// Don't charge node for time suspended.
 		// Reduce from output side since its tx that suspends not rx.
@@ -618,18 +606,6 @@ func (l *Loop) dataPoll(p inLooper) {
 	for {
 		n.poller_elog(poller_elog_node_wait)
 		n.ft.waitLoop()
-		if false { //debug print
-			actor_name := "nil"
-			t := 10 * time.Second
-			if n.CurrentEvent() != nil {
-				if n.CurrentEvent().e != nil {
-					if n.CurrentEvent().e.actor != nil {
-						actor_name = n.CurrentEvent().e.actor.String()
-					}
-				}
-			}
-			n.ft.waitLoop_with_timeout(t, n.name+"(dataPoll)", actor_name, len(n.e.rxEvents))
-		}
 		n.poller_elog(poller_elog_node_wake)
 		ap := n.getActivePoller()
 		an := &ap.activeNodes[n.index]
@@ -693,16 +669,6 @@ func (l *Loop) doPollers() {
 				<-a.toLoop
 			} else {
 				done = n.ft.waitNode()
-				if false {
-					actor_name := "nil"
-					t := 3 * time.Second
-					if n.e.currentEvent.e != nil {
-						if n.e.currentEvent.e.actor != nil {
-							actor_name = n.e.currentEvent.e.actor.String()
-						}
-					}
-					done = n.ft.waitNode_with_timeout(t, n.name+"(doPollers)", actor_name, len(n.e.rxEvents))
-				}
 			}
 			n.poller_elog(poller_elog_wait_done)
 			n.maybeClearResume()
