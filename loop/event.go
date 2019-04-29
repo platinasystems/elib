@@ -91,7 +91,7 @@ type nodeEvent struct {
 	caller elog.Caller
 
 	// Protect following
-	mu           sync.Mutex
+	sync.Mutex
 	suspendState bool
 	resumeState  bool
 	numSuspended uint
@@ -113,47 +113,47 @@ func (e *nodeEvent) EventTime() cpu.Time { return e.time }
  mutex protected; use following functions to read/write states and counters
 */
 func (e *nodeEvent) isResume() bool {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Lock()
+	defer e.Unlock()
 	return e.suspendState && e.resumeState
 }
 func (e *nodeEvent) isSuspend() bool {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Lock()
+	defer e.Unlock()
 	return e.suspendState && !e.resumeState
 }
 func (e *nodeEvent) isClear() bool {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Lock()
+	defer e.Unlock()
 	return !e.suspendState && !e.resumeState
 }
 func (e *nodeEvent) setResume() {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Lock()
+	defer e.Unlock()
 	e.resumeState = true
 	e.numResumed++
 }
 func (e *nodeEvent) setSuspend() {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Lock()
+	defer e.Unlock()
 	e.suspendState, e.resumeState = true, false
 	e.numSuspended++
 }
 func (e *nodeEvent) clearResume() {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Lock()
+	defer e.Unlock()
 	e.suspendState, e.resumeState = false, false
 }
 func (e *nodeEvent) getCounters() (suspendC, resumeC uint) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Lock()
+	defer e.Unlock()
 	suspendC = e.numSuspended
 	resumeC = e.numResumed
 	return
 }
 func (e *nodeEvent) initStatesCounters() {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.Lock()
+	defer e.Unlock()
 	e.suspendState, e.resumeState = false, false
 	e.numSuspended, e.numResumed = 0, 0
 }
