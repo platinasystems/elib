@@ -83,6 +83,28 @@ func (l *eventMain) getLoopEvent(a event.Actor, dst Noder, p elog.PointerToFirst
 }
 func (l *eventMain) putLoopEvent(x *nodeEvent) { l.nodeEventPool.Put(x) }
 
+type nodeEventState uint8
+
+const (
+	nodeEventClearState nodeEventState = iota
+	nodeEventSuspendState
+	nodeEventResumeState
+	nodeEventInvalidState
+)
+
+func (ns nodeEventState) String() string {
+	switch ns {
+	case nodeEventClearState:
+		return "active"
+	case nodeEventSuspendState:
+		return "suspend"
+	case nodeEventResumeState:
+		return "resume"
+	default:
+		return "invalid"
+	}
+}
+
 type nodeEvent struct {
 	l      *Loop
 	d      *Node
@@ -92,8 +114,7 @@ type nodeEvent struct {
 
 	// Protect following
 	sync.Mutex
-	suspendState bool
-	resumeState  bool
+	state        nodeEventState
 	numSuspended uint
 	numResumed   uint
 }
@@ -101,48 +122,45 @@ type nodeEvent struct {
 func (e *nodeEvent) EventTime() cpu.Time { return e.time }
 
 /*
- normal sequence for nodeEvent suspend/resume is
-  init:        suspendState, resumeState = false, false
-  suspend:     suspendState, resumeState = true, false
-  resume:      suspendState, resumeState = true, true
-  clearResume: suspendState, resumeState = false, false
-
- A state of suspendState, resumeState = false, true is not a valid state
-  and indicative that something is wrong
-
  mutex protected; use following functions to read/write states and counters
 */
+func (e *nodeEvent) State() nodeEventState {
+	e.Lock()
+	defer e.Unlock()
+	return e.state
+}
+
 func (e *nodeEvent) isResume() bool {
 	e.Lock()
 	defer e.Unlock()
-	return e.suspendState && e.resumeState
+	return e.state == nodeEventResumeState
 }
 func (e *nodeEvent) isSuspend() bool {
 	e.Lock()
 	defer e.Unlock()
-	return e.suspendState && !e.resumeState
+	return e.state == nodeEventSuspendState
 }
 func (e *nodeEvent) isClear() bool {
 	e.Lock()
 	defer e.Unlock()
-	return !e.suspendState && !e.resumeState
+	return e.state == nodeEventClearState
 }
 func (e *nodeEvent) setResume() {
 	e.Lock()
 	defer e.Unlock()
-	e.resumeState = true
+	e.state = nodeEventResumeState
 	e.numResumed++
 }
 func (e *nodeEvent) setSuspend() {
 	e.Lock()
 	defer e.Unlock()
-	e.suspendState, e.resumeState = true, false
+	e.state = nodeEventSuspendState
 	e.numSuspended++
 }
 func (e *nodeEvent) clearResume() {
 	e.Lock()
 	defer e.Unlock()
-	e.suspendState, e.resumeState = false, false
+	e.state = nodeEventClearState
 }
 func (e *nodeEvent) getCounters() (suspendC, resumeC uint) {
 	e.Lock()
@@ -154,7 +172,7 @@ func (e *nodeEvent) getCounters() (suspendC, resumeC uint) {
 func (e *nodeEvent) initStatesCounters() {
 	e.Lock()
 	defer e.Unlock()
-	e.suspendState, e.resumeState = false, false
+	e.state = nodeEventClearState
 	e.numSuspended, e.numResumed = 0, 0
 }
 
@@ -912,9 +930,7 @@ func (n eventNode) String() string {
 	s += fmt.Sprintf("  %-20v: %v\n", "previousEvent", n.prevEvent)
 	s += fmt.Sprintf("  %-20v: %v\n", "currentEvent", &n.currentEvent)
 	if n.currentEvent.e != nil {
-		s += fmt.Sprintf("  %-20v: %v\n", "  suspend:", n.currentEvent.e.isSuspend())
-		s += fmt.Sprintf("  %-20v: %v\n", "  resume:", n.currentEvent.e.isResume())
-		s += fmt.Sprintf("  %-20v: %v\n", "  active:", n.currentEvent.e.isClear())
+		s += fmt.Sprintf("  %-20v: %v\n", "  eventState:", n.currentEvent.e.State())
 	}
 	s += fmt.Sprintf("  %-20v: %v\n", "eventQueueDepth", len(n.rxEvents))
 	return s
