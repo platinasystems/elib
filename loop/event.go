@@ -73,8 +73,8 @@ func (l *eventMain) getLoopEvent(a event.Actor, dst Noder, p elog.PointerToFirst
 	e.l = l.l
 	e.time = 0
 	e.caller = elog.GetCaller(p)
-	e.clearResume()
-	e.initStatesCounters()
+	e.activate()
+	e.initCounters()
 	if dst != nil {
 		e.d = dst.GetNode()
 		e.d.maybeStartEventHandler()
@@ -86,7 +86,7 @@ func (l *eventMain) putLoopEvent(x *nodeEvent) { l.nodeEventPool.Put(x) }
 type nodeEventState uint8
 
 const (
-	nodeEventClearState nodeEventState = iota
+	nodeEventActiveState nodeEventState = iota
 	nodeEventSuspendState
 	nodeEventResumeState
 	nodeEventInvalidState
@@ -94,7 +94,7 @@ const (
 
 func (ns nodeEventState) String() string {
 	switch ns {
-	case nodeEventClearState:
+	case nodeEventActiveState:
 		return "active"
 	case nodeEventSuspendState:
 		return "suspend"
@@ -140,27 +140,27 @@ func (e *nodeEvent) isSuspend() bool {
 	defer e.Unlock()
 	return e.state == nodeEventSuspendState
 }
-func (e *nodeEvent) isClear() bool {
+func (e *nodeEvent) isActive() bool {
 	e.Lock()
 	defer e.Unlock()
-	return e.state == nodeEventClearState
+	return e.state == nodeEventActiveState
 }
-func (e *nodeEvent) setResume() {
+func (e *nodeEvent) resume() {
 	e.Lock()
 	defer e.Unlock()
 	e.state = nodeEventResumeState
 	e.numResumed++
 }
-func (e *nodeEvent) setSuspend() {
+func (e *nodeEvent) suspend() {
 	e.Lock()
 	defer e.Unlock()
 	e.state = nodeEventSuspendState
 	e.numSuspended++
 }
-func (e *nodeEvent) clearResume() {
+func (e *nodeEvent) activate() {
 	e.Lock()
 	defer e.Unlock()
-	e.state = nodeEventClearState
+	e.state = nodeEventActiveState
 }
 func (e *nodeEvent) getCounters() (suspendC, resumeC uint) {
 	e.Lock()
@@ -169,10 +169,9 @@ func (e *nodeEvent) getCounters() (suspendC, resumeC uint) {
 	resumeC = e.numResumed
 	return
 }
-func (e *nodeEvent) initStatesCounters() {
+func (e *nodeEvent) initCounters() {
 	e.Lock()
 	defer e.Unlock()
-	e.state = nodeEventClearState
 	e.numSuspended, e.numResumed = 0, 0
 }
 
@@ -361,7 +360,7 @@ func (x *Event) Suspend() {
 		n.logsi(d, event_elog_suspend, n.sequence, "ignore duplicate suspend")
 		return
 	}
-	x.e.setSuspend()
+	x.e.suspend()
 	n.log(d, event_elog_suspend)
 	n.eventStats.current.suspends++
 	t0 := cpu.TimeNow()
@@ -399,7 +398,7 @@ func (x *Event) SuspendWTimeout(t time.Duration) {
 		n.logsi(d, event_elog_suspend, n.sequence, "ignore duplicate suspend")
 		return
 	}
-	x.e.setSuspend()
+	x.e.suspend()
 	n.log(d, event_elog_suspend)
 	n.eventStats.current.suspends++
 	t0 := cpu.TimeNow()
@@ -412,7 +411,7 @@ func (x *Event) SuspendWTimeout(t time.Duration) {
 	n.log(d, event_elog_resumed)
 }
 
-// e.setResume() and n.s.setResume() must be called only after e.setSuspned() and n.s.setSuspend()
+// e.resume() and n.s.setResume() must be called only after e.suspend() and n.s.setSuspend()
 func (x *Event) Resume() (ok bool) {
 	e := x.e
 	d := e.d
@@ -431,16 +430,9 @@ func (x *Event) Resume() (ok bool) {
 		return
 	}
 	n.log(d, event_elog_queue_resume)
-	e.setResume()
+	e.resume()
 	d.l.events <- e
 	return
-}
-
-func (x *nodeEvent) resume() {
-	d, n := x.d, &x.d.e
-	n.log(d, event_elog_resume_wake)
-	n.s.clearResume(d)
-	x.clearResume()
 }
 
 // If too small, events may block when there are timing mismataches between sender and receiver.
@@ -521,7 +513,10 @@ func (m *eventMain) doNodeEvent(e *nodeEvent) (quit *quitEvent) {
 	}
 	if e.isResume() {
 		m.addActive(e.d)
-		e.resume()
+		d, n := e.d, &e.d.e
+		n.log(d, event_elog_resume_wake)
+		n.s.clearResume(d)
+		e.activate()
 	} else {
 		e.EventAction()
 	}
