@@ -151,7 +151,8 @@ func (heap *Heap) removeFreeElt(ei, size Index) {
 		heap.removed = append(heap.removed, ei)
 		return
 	}
-	panic("corrupt free list")
+	panic(fmt.Errorf("corrupt free list: size %v len(heap.free[size]) %v, fi %v, %v %v\n", size,
+		len(heap.free[size]), fi, heap.free[size][fi], freeElt(ei)))
 }
 
 func (heap *Heap) eltSize(e *heapElt) Index {
