@@ -1,4 +1,4 @@
-// Copyright 2016 Platina Systems, Inc. All rights reserved.
+// Copyright © 2016-2019 Platina Systems, Inc. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -7,8 +7,6 @@ package pci
 // Linux PCI code
 
 import (
-	"github.com/platinasystems/elib"
-
 	"bytes"
 	"fmt"
 	"io/ioutil"
@@ -188,7 +186,7 @@ func (d *Device) findResources() (err error) {
 	return
 }
 
-func DiscoverDevices(bus Bus, l elib.Logger) (err error) {
+func DiscoverDevices(bus Bus) (err error) {
 	fis, err := ioutil.ReadDir(sysBusPciPath)
 	if perr, ok := err.(*os.PathError); ok && perr.Err == syscall.ENOENT {
 		return
