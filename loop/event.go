@@ -239,11 +239,12 @@ func (e *nodeEvent) do() {
 	if e.actor == nil {
 		panic(fmt.Errorf("event.go do: trying to do EventAction at a nil actor"))
 	}
+	prevEvent := e.String() // get this string before actor is put back into pool after EventAction()
 	e.actor.EventAction()
 	e.d.e.eventStats.update(1, t0)
 	n.log(d, event_elog_action_done)
 	n.sequence++ // done => use next sequence
-	n.prevEvent = e.String()
+	n.prevEvent = prevEvent
 	e.l.putLoopEvent(e)
 }
 
