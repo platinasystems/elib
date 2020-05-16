@@ -8,6 +8,7 @@ import (
 	"github.com/platinasystems/elib/cpu"
 	"github.com/platinasystems/elib/dep"
 	"github.com/platinasystems/elib/elog"
+	"github.com/platinasystems/elib/wg"
 
 	"fmt"
 	"io"
@@ -79,7 +80,8 @@ type Loop struct {
 	activePollerPool  activePollerPool
 	pollerStats       pollerStats
 
-	wg sync.WaitGroup
+	wgi sync.WaitGroup
+	wg  sync.WaitGroup
 
 	registrationsNeedStart bool
 	initialNodesRegistered bool
@@ -96,6 +98,8 @@ type Loop struct {
 	loggerMain
 	nodeStateMain
 	panicMain
+
+	Stop chan struct{}
 }
 
 func (l *Loop) GetNode(i uint) *Node       { return l.nodes[i] }
@@ -104,7 +108,8 @@ func (l *Loop) Seconds(t cpu.Time) float64 { return float64(t) * l.secsPerCycle 
 
 func (l *Loop) startDataPoller(r inLooper) {
 	n := r.GetNode()
-	n.ft.init()
+	n.ft.init(l)
+	l.wg.Add(1)
 	go l.dataPoll(r)
 }
 func (l *Loop) startPollers() {
@@ -150,7 +155,7 @@ func (l *Loop) callExitHooks() {
 
 func (l *Loop) callInitNode(n Initer, isCall bool) {
 	c := n.GetNode()
-	wg := &l.wg
+	wg := &l.wgi
 	if isCall {
 		wg = &c.initWg
 	}
@@ -169,7 +174,7 @@ func (l *Loop) doInitNodes() {
 	for _, i := range l.loopIniters {
 		l.startInitNode(i)
 	}
-	l.wg.Wait()
+	l.wgi.Wait()
 }
 
 func (l *Loop) doExit() {
@@ -216,6 +221,7 @@ func (l *Loop) Run() {
 		}
 	}()
 
+	l.Stop = make(chan struct{})
 	l.timerInit()
 	l.cliInit()
 	l.eventInit(l)
@@ -228,6 +234,7 @@ func (l *Loop) Run() {
 	if l.QuitAfterDuration > 0 {
 		l.quitAfter()
 	}
+	wg.WG.Add(1)
 	for {
 		if quit := l.doEvents(); quit {
 			break

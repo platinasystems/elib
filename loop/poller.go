@@ -20,11 +20,13 @@ import (
 type fromToNode struct {
 	toNode   chan struct{}
 	fromNode chan bool
+	l        *Loop
 }
 
-func (x *fromToNode) init() {
+func (x *fromToNode) init(l *Loop) {
 	x.toNode = make(chan struct{}, 1)
 	x.fromNode = make(chan bool, 1)
+	x.l = l
 }
 
 func (x *fromToNode) signalNode()    { x.toNode <- struct{}{} }
@@ -32,6 +34,8 @@ func (x *fromToNode) waitNode() bool { return <-x.fromNode }
 func (x *fromToNode) waitNode_with_timeout(d time.Duration, n *Node) bool {
 	for {
 		select {
+		case <-x.l.Stop:
+			return false
 		case done := <-x.fromNode:
 			return done
 		case <-time.After(d):
@@ -49,6 +53,8 @@ func (x *fromToNode) waitLoop()         { <-x.toNode }
 func (x *fromToNode) waitLoop_with_timeout(d time.Duration, n *Node) {
 	for {
 		select {
+		case <-x.l.Stop:
+			return
 		case <-x.toNode:
 			return
 		case <-time.After(d):
@@ -474,6 +480,7 @@ func (n *Node) allocActivePoller() {
 	if poll_active {
 		a.fromLoop = make(chan inLooper, 1)
 		a.toLoop = make(chan struct{}, 1)
+		n.l.wg.Add(1)
 		go a.dataPoll(n.l)
 	}
 }
@@ -569,6 +576,7 @@ func (a *activePoller) dataPoll(l *Loop) {
 
 	// Save elog if thread panics.
 	defer func() {
+		l.wg.Done()
 		if elog.Enabled() {
 			if err := recover(); err != nil {
 				elog.Panic(fmt.Errorf("poller%d: %v", a.index, err))
@@ -576,17 +584,22 @@ func (a *activePoller) dataPoll(l *Loop) {
 			}
 		}
 	}()
-	for p := range a.fromLoop {
-		n := p.GetNode()
-		an := &a.activeNodes[n.index]
-		a.currentNode = an
-		t0 := cpu.TimeNow()
-		a.timeNow = t0
-		p.LoopInput(l, an.looperOut)
-		nVec := an.out.call(l, a)
-		a.pollerStats.update(nVec, t0)
-		l.pollerStats.update(nVec)
-		a.toLoop <- struct{}{}
+	for {
+		select {
+		case <-l.Stop:
+			return
+		case p := <-a.fromLoop:
+			n := p.GetNode()
+			an := &a.activeNodes[n.index]
+			a.currentNode = an
+			t0 := cpu.TimeNow()
+			a.timeNow = t0
+			p.LoopInput(l, an.looperOut)
+			nVec := an.out.call(l, a)
+			a.pollerStats.update(nVec, t0)
+			l.pollerStats.update(nVec)
+			a.toLoop <- struct{}{}
+		}
 	}
 }
 
@@ -594,6 +607,7 @@ func (l *Loop) dataPoll(p inLooper) {
 	n := p.GetNode()
 	// Save elog if thread panics.
 	defer func() {
+		l.wg.Done()
 		if elog.Enabled() {
 			if err := recover(); err != nil {
 				err = fmt.Errorf("%s: %v", n.name, err)
@@ -604,20 +618,25 @@ func (l *Loop) dataPoll(p inLooper) {
 		}
 	}()
 	for {
-		n.poller_elog(poller_elog_node_wait)
-		n.ft.waitLoop()
-		n.poller_elog(poller_elog_node_wake)
-		ap := n.getActivePoller()
-		an := &ap.activeNodes[n.index]
-		ap.currentNode = an
-		t0 := cpu.TimeNow()
-		ap.timeNow = t0
-		p.LoopInput(l, an.looperOut)
-		nVec := an.out.call(l, ap)
-		ap.pollerStats.update(nVec, t0)
-		l.pollerStats.update(nVec)
-		n.poller_elog(poller_elog_node_signal)
-		n.ft.signalLoop(true)
+		select {
+		case <-l.Stop:
+			return
+		default:
+			n.poller_elog(poller_elog_node_wait)
+			n.ft.waitLoop()
+			n.poller_elog(poller_elog_node_wake)
+			ap := n.getActivePoller()
+			an := &ap.activeNodes[n.index]
+			ap.currentNode = an
+			t0 := cpu.TimeNow()
+			ap.timeNow = t0
+			p.LoopInput(l, an.looperOut)
+			nVec := an.out.call(l, ap)
+			ap.pollerStats.update(nVec, t0)
+			l.pollerStats.update(nVec)
+			n.poller_elog(poller_elog_node_signal)
+			n.ft.signalLoop(true)
+		}
 	}
 }
 

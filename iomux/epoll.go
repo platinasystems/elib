@@ -43,7 +43,7 @@ func epoll_pwait(epfd int, events []epollEvent, secs float64) (n int, err error)
 	var zero [8]byte // Zero signal mask so any signal will stop wait.
 	msec := -1
 	if secs > 0 {
-		msec = int(1e-3 * secs)
+		msec = int(1e3 * secs)
 	}
 	r0, _, e := syscall.Syscall6(syscall.SYS_EPOLL_PWAIT, uintptr(epfd), uintptr(unsafe.Pointer(&events[0])), uintptr(len(events)), uintptr(msec),
 		uintptr(unsafe.Pointer(&zero[0])), uintptr(unsafe.Sizeof(zero)))
@@ -185,7 +185,7 @@ func (m *Mux) EventPoll() {
 	var events [256]epollEvent
 	m.maybe_epoll_create()
 	es := events[:]
-	n, err := epoll_pwait(m.fd, es, float64(-1))
+	n, err := epoll_pwait(m.fd, es, float64(1))
 	if err != nil {
 		panic(fmt.Errorf("epoll_pwait %s", err))
 	}

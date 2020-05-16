@@ -10,6 +10,7 @@ import (
 	"github.com/platinasystems/elib/cpu"
 	"github.com/platinasystems/elib/elog"
 	"github.com/platinasystems/elib/event"
+	"github.com/platinasystems/elib/wg"
 
 	"fmt"
 	"runtime/debug"
@@ -269,6 +270,7 @@ func (l *Loop) eventHandler(r Noder) {
 	d := r.GetNode()
 	// Save elog if thread panics.
 	defer func() {
+		l.wg.Done()
 		if err := recover(); err != nil {
 			if err == ErrQuit {
 				l.Quit()
@@ -292,13 +294,17 @@ func (l *Loop) eventHandler(r Noder) {
 		n.ft.waitLoop_with_timeout(t, d)
 
 		n.log(d, event_elog_node_wake)
-		e := <-n.rxEvents
-		if poller_panics && e.d != d {
-			panic(fmt.Errorf("expected node %s got %s: %p %s", d.name, e.d.name, e, e.actor.String()))
+		select {
+		case <-l.Stop:
+			return
+		case e := <-n.rxEvents:
+			if poller_panics && e.d != d {
+				panic(fmt.Errorf("expected node %s got %s: %p %s", d.name, e.d.name, e, e.actor.String()))
+			}
+			n.currentEvent.e = e
+			e.do()
+			d.eventDone()
 		}
-		n.currentEvent.e = e
-		e.do()
-		d.eventDone()
 	}
 }
 
@@ -458,8 +464,9 @@ func (d *Node) maybeStartEventHandler() {
 		l.eventHandlerNodes = append(l.eventHandlerNodes, d)
 		n.rxEvents = make(chan *nodeEvent, eventHandlerChanDepth)
 		n.activeIndex = ^uint(0)
-		n.ft.init()
+		n.ft.init(l)
 		elog.F("loop starting event handler %v", d.elogNodeName)
+		l.wg.Add(1)
 		go l.eventHandler(d.noder)
 	})
 }
@@ -467,6 +474,7 @@ func (d *Node) maybeStartEventHandler() {
 func (l *Loop) eventPoller(p EventPoller) {
 	// Save elog if thread panics.
 	defer func() {
+		l.wg.Done()
 		if elog.Enabled() {
 			if err := recover(); err != nil {
 				elog.Panic(err)
@@ -477,10 +485,18 @@ func (l *Loop) eventPoller(p EventPoller) {
 		}
 	}()
 	for {
-		p.EventPoll()
+		select {
+		case <-l.Stop:
+			return
+		default:
+			p.EventPoll()
+		}
 	}
 }
-func (l *Loop) startEventPoller(n EventPoller)         { go l.eventPoller(n) }
+func (l *Loop) startEventPoller(n EventPoller) {
+	l.wg.Add(1)
+	go l.eventPoller(n)
+}
 func (l *eventMain) RegisterEventPoller(p EventPoller) { l.eventPollers = append(l.eventPollers, p) }
 
 func (e *nodeEvent) EventAction() {
@@ -841,8 +857,11 @@ func (e *quitEvent) String() string { return quitEventTypeStrings[e.Type] }
 func (e *quitEvent) Error() string  { return e.String() }
 func (e *quitEvent) EventAction()   {}
 func (l *Loop) Quit() {
+	defer wg.WG.Done()
 	e := l.getLoopEvent(ErrQuit, nil, elog.PointerToFirstArg(&l))
 	l.signalEvent(e)
+	close(l.Stop)
+	l.wg.Wait()
 }
 
 // Add an event to wakeup event sleep.
